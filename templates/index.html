@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用電量預測</title>
+
+    <link href="../static/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@100;300;400;500;700;900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            font-family: 'Poppins', 'Noto Sans TC', sans-serif;
+        }
+        .bg-main {
+            background-color: #292929 !important;
+        }
+        .bg-card {
+            background-color: #2b2b2b !important;
+        }
+        hr {
+            background-color: #FFF;
+            border: 0;
+            opacity: 0.25;
+        }
+    </style>
+</head>
+<body class="bg-main">
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark py-0">
+        <div class="container justify-content-center">
+            <div class="text-white pt-3 pb-2 hover-pointer">
+                <h5>用電量預測</h5>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="my-3 text-center">
+            <textarea type="text" id="inputs" class="form-control bg-card border-0 text-white p-3" placeholder="請輸入過去24小時用電量(MW)，一個數值一行。" rows="10"></textarea>
+            <button type="button" class="btn btn-secondary mt-3" onclick="predict()">預測</button>
+        </div>
+        <hr>
+        <div id="result_area">
+            <canvas id="result_chart" width="300" height="100"></canvas>
+        </div>
+    </main>
+    
+    <script src="../static/bootstrap.bundle.min.js"></script>
+    <script src="../static/jquery-3.6.0.js"></script>
+    <script src="../static/chart.min.js"></script>
+    <script>
+        const ctx = document.getElementById('result_chart').getContext('2d');
+        const config = {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 71}, (_, i) => `T${(-24+i+1)<=0? (-24+i+1): '+'+(-24+i+1)}`),
+                datasets: [{
+                    label: '過去24小時',
+                    data: {},
+                    fill: true,
+                    borderColor: '#4bc0c0',
+                    pointBackgroundColor: '#4bc0c0',
+                    backgroundColor: '#4bc0c022',
+                    borderWidth: 3
+                },{
+                    label: '預測48小時',
+                    data: {},
+                    fill: true,
+                    borderColor: '#c04b74',
+                    pointBackgroundColor: '#c04b74',
+                    backgroundColor: '#c04b7444',
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                    }
+                }
+            }
+        }
+        const resultChart = new Chart(ctx, config);
+
+        function isNumeric(str) {
+            if (typeof str != "string") return false
+            return !isNaN(str) && !isNaN(parseFloat(str))
+        }
+
+        function predict() {
+            let inputs = document.getElementById('inputs').value.split('\n');
+            if (inputs.length !== 24) alert("請輸入24個數值（一行一個）")
+            else if (!inputs.every((v) => isNumeric(v))) alert("請正確輸入數值")
+            else {
+                inputs = inputs.map((v) => parseFloat(v))
+                $.ajax({
+                    url: 'predict',
+                    type: 'POST',
+                    dataType: 'JSON',
+                    data: JSON.stringify(inputs),
+                })
+                .done((data) => {
+                    let input_dict = {};
+                    inputs.forEach((el, index) => input_dict[`T${index-23}`] = el);
+                    let result_dict = {'T0': inputs[inputs.length-1]};
+                    data.data.forEach((el, index) => result_dict[`T+${index+1}`] = el);
+                    resultChart.data.datasets[0].data = input_dict;
+                    resultChart.data.datasets[1].data = result_dict;
+                    resultChart.update()
+                })
+                .fail((jqXHR, textStatus, errorThrown) => {
+                    console.log(textStatus);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
